@@ -1,0 +1,6 @@
+<Project>
+  <ItemGroup>
+    <!-- Exclude ProjectF76World project sources from main build so WPF app compiles cleanly -->
+    <Compile Remove="ProjectF76World\\**\\*.cs" />
+  </ItemGroup>
+</Project>

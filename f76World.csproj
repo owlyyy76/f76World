@@ -12,7 +12,24 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="System.ServiceProcess.ServiceController" Version="10.0.5" />
+        <!-- Exclude experimental ProjectF76World sources from this build to stabilize WPF project compilation -->
+		<Compile Remove="ProjectF76World\\**\\*.cs" />
+		<None Remove="ProjectF76World\\**\\*.xaml" />
+		<Compile Remove="ProjectF76World\\**\\*.xaml.cs" />
+		<Compile Include="ProjectF76World\CrossPlatformGameOrchestrator.cs" />
+		<PackageReference Include="Avalonia" Version="12.0.0" />
+		<PackageReference Include="Microsoft.ApplicationInsights" Version="3.1.0" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="11.0.0-preview.2.26159.112" />
+		<PackageReference Include="Microsoft.Extensions.Http" Version="11.0.0-preview.2.26159.112" />
+		<PackageReference Include="Microsoft.Extensions.Logging" Version="11.0.0-preview.2.26159.112" />
+		<PackageReference Include="Microsoft.Extensions.Options" Version="11.0.0-preview.2.26159.112" />
+		<PackageReference Include="Microsoft.Extensions.Primitives" Version="11.0.0-preview.2.26159.112" />
+		<PackageReference Include="Microsoft.Win32.SystemEvents" Version="11.0.0-preview.2.26159.112" />
+		<PackageReference Include="Newtonsoft.Json" Version="13.0.5-beta1" />
+		<PackageReference Include="RabbitMQ.Client" Version="7.2.1" />
+		<PackageReference Include="System.ServiceProcess.ServiceController" Version="11.0.0-preview.2.26159.112" />
+		<PackageReference Include="System.Windows.Extensions" Version="11.0.0-preview.2.26159.112" />
+		<PackageReference Include="OpenTelemetry.Api" Version="1.15.3" />
 	</ItemGroup>
 
 </Project>
