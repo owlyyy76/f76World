@@ -1,83 +1,82 @@
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Threading;
+using System;
 using System.ComponentModel;
 using System.Threading.Tasks;
-using System.IO;
-using f76World.Native.Core.Telemetry;
+using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
 using ProjectF76World.Hardware;
+using ProjectF76World.Core;
 
-
-namespace ProjectF76World.UI;
-
-public partial class MainWindow : Window
+namespace f76World
 {
-    private readonly f76World.Native.Core.Telemetry.ITelemetryMonitor _telemetryMonitor;
-    private readonly PeriodicTimer _periodicTimer = new(System.TimeSpan.FromMilliseconds(1000));
-    private readonly Task _backgroundMonitoringTask;
-
-    // Pre-allocated buffers (managed fallback)
-    private static readonly char[] _vramBuffer = new char[64];
-    private static readonly char[] _clockBuffer = new char[128];
-    private static readonly char[] _tempBuffer = new char[32];
-
-    public MainWindow(IServiceProvider serviceProvider)
+    public partial class MainWindow : Window
     {
-        InitializeComponent();
-        
-        // Inject telemetry monitor via constructor (DI pattern)
-        _telemetryMonitor = serviceProvider.GetRequiredService<f76World.Native.Core.Telemetry.ITelemetryMonitor>();
-        
-        // Start background monitoring loop
-        _backgroundMonitoringTask = Task.Run(StartBackgroundLoopAsync);
-    }
+        private readonly IGameOrchestrator _orchestrator;
+        private readonly FluidRestartEngine _updater;
 
-    private async Task StartBackgroundLoopAsync()
-    {
-        using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(1000));
-        
-        while (await timer.WaitForNextTickAsync())
+        public MainWindow(IServiceProvider serviceProvider)
         {
-            try
-            {
-                // Get telemetry from monitor - returns readonly struct, no boxing
-                var state = _telemetryMonitor.GetTelemetry();
-                
-                // Zero-allocation string formatting using ISpanFormattable patterns
-                UpdateTextBlocksZeroAlloc(state);
-            }
-            catch (Exception ex)
-            {
-                Console.Error.WriteLine($"Background telemetry monitoring error: {ex}");
-            }
+            InitializeComponent();
+
+            _orchestrator = serviceProvider.GetRequiredService<IGameOrchestrator>();
+            _updater = serviceProvider.GetRequiredService<FluidRestartEngine>();
+
+            _orchestrator.Initialize();
+            AppendLog("BEOW Native Engine zainicjowany poprawnie.");
         }
-    }
 
-    private async Task UpdateTextBlocksZeroAlloc(GpuTelemetryState state)
-    {
-        // Use Dispatcher.UIThread.PostAsync for UI updates from background thread
-        await Dispatcher.UIThread.PostAsync(() =>
+        private void AppendLog(string message)
         {
-            // Simple managed formatting (acceptable for now)
-            TextBlocks[0].Text = $"VRAM: {state.VramUsageMB} MB";
-            TextBlocks[1].Text = $"Core Clock: {state.CoreClockMHz} MHz";
-            TextBlocks[2].Text = $"Temp: {state.TemperatureCelsius}°C";
-        });
-    }
+            // Bezpieczne wstrzyknięcie logów w WPF (Single-threaded UI)
+            Application.Current.Dispatcher.InvokeAsync(() =>
+            {
+                LogConsole.AppendText($"[{DateTime.Now:HH:mm:ss}] {message}\n");
+                LogConsole.ScrollToEnd();
+            });
+        }
 
-    private static void SpanAction(Span<char> span, int value)
-    {
-        // Minimalist helper - not used in current managed formatting
-        if (value <= 0) return;
-        var s = value.ToString();
-        for (int i = 0; i < s.Length && i < span.Length; i++) span[i] = s[i];
-    }
+        private async void BtnUpdate_Click(object sender, RoutedEventArgs e)
+        {
+            BtnUpdate.IsEnabled = false;
+            await _updater.CheckAndUpdateAsync(AppendLog);
+            BtnUpdate.IsEnabled = true;
+        }
 
-    protected override void OnClosing(CancelEventArgs e)
-    {
-        // Stop background monitoring loop on close
-        _backgroundMonitoringTask?.Wait().ConfigureAwait(false);
-        base.OnClosing(e);
+        private async void BtnLaunchGame_Click(object sender, RoutedEventArgs e)
+        {
+            AppendLog("Wykonywanie VRAM Purge (zwalnianie buforów DXGI)...");
+
+            await Task.Run(() => _orchestrator.DumpVRAM());
+
+            AppendLog("VRAM wyczyszczony. Wektor uruchomieniowy FO76 gotowy.");
+            LblEngineStatus.Text = "ACTIVE";
+            LblEngineStatus.Foreground = System.Windows.Media.Brushes.LimeGreen;
+        }
+
+        // Elementy kontrolne interfejsu
+        private void TitleBar_MouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (e.LeftButton == System.Windows.Input.MouseButtonState.Pressed)
+                DragMove();
+        }
+
+        private void BtnMinimize_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
+        private void BtnClose_Click(object sender, RoutedEventArgs e) => Close();
+        private void LangCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e) { }
+        private void BtnOptimizeIni_Click(object sender, RoutedEventArgs e) { AppendLog("Analiza Matrixów INI..."); }
+        private void BtnAnalyze_Click(object sender, RoutedEventArgs e) { AppendLog("Analizowanie archiwów systemowych..."); }
+        private void BtnRun_Click(object sender, RoutedEventArgs e) { AppendLog("Wykonywanie operacji wsadowych..."); }
+        private void BtnKill_Click(object sender, RoutedEventArgs e) { AppendLog("Zabijanie zablokowanych procesów (Kill-Switch)..."); }
+        private void BtnMenu_Click(object sender, RoutedEventArgs e) { AppendLog("Integracja rejestru (Menu Kontekstowe)..."); }
+        private void BtnReport_Click(object sender, RoutedEventArgs e) { AppendLog("Generowanie logu diagnostycznego..."); }
+        private void ChkAutoStart_Checked(object sender, RoutedEventArgs e) { }
+        private void ChkAutoStart_Unchecked(object sender, RoutedEventArgs e) { }
+
+        protected override void OnClosing(CancelEventArgs e)
+        {
+            if (_orchestrator is IDisposable disposable)
+                disposable.Dispose();
+
+            base.OnClosing(e);
+        }
     }
 }
