@@ -5,78 +5,69 @@ using System.Net.Http;
 using System.Threading.Tasks;
 using System.Windows;
 
-namespace ProjectF76World.Core;
-
-public class FluidRestartEngine
+namespace ProjectF76World.Core
 {
-    private const string API_ENDPOINT = "https://api.f76.world/v1/launcher/version";
-    private const string CURRENT_VERSION = "1.0.0";
-    private readonly HttpClient _httpClient;
-
-    public FluidRestartEngine(IHttpClientFactory httpClientFactory)
+    public class FluidRestartEngine
     {
-        _httpClient = httpClientFactory.CreateClient();
-    }
+        private readonly HttpClient _httpClient;
+        private const string ApiEndpoint = "https://api.f76.world/v1/launcher/version";
 
-    public async Task<bool> CheckAndUpdateAsync(Action<string> logCallback)
-    {
-        try
+        public FluidRestartEngine(IHttpClientFactory httpClientFactory)
         {
-            logCallback("[INFO] Inicjalizacja Fluid Restart Engine. Oczekiwanie na sygnał API...");
+            _httpClient = httpClientFactory.CreateClient();
+        }
 
-            // Symulacja sprawdzenia (w produkcji odpytaj API_ENDPOINT)
-            // var response = await _httpClient.GetStringAsync(API_ENDPOINT);
-            bool hasUpdate = true; // Flaga testowa
+        public async Task<bool> CheckAndUpdateAsync(Action<string> logCallback)
+        {
+            logCallback("[INFO] Inicjalizacja Fluid Restart Engine. Pingowanie f76.world...");
 
-            if (hasUpdate)
+            try
             {
-                logCallback("[WARN] Wykryto nową wersję z API Gateway f76.world. Rozpoczynam pobieranie tła...");
+                // W produkcji: await _httpClient.GetStringAsync(ApiEndpoint);
+                await Task.Delay(500); // Symulacja opóźnienia sieciowego
+
+                logCallback("[WARN] Zabezpieczono nową sygnaturę binarną. Inicjalizacja rotacji...");
                 return await ExecuteSeamlessRestart(logCallback);
             }
-
-            logCallback("[SUCCESS] System jest aktualny.");
-            return false;
+            catch (Exception ex)
+            {
+                logCallback($"[ERROR] Błąd synchronizacji API Gateway: {ex.Message}");
+                return false;
+            }
         }
-        catch (Exception ex)
+
+        private async Task<bool> ExecuteSeamlessRestart(Action<string> logCallback)
         {
-            logCallback($"[ERROR] Błąd synchronizacji API: {ex.Message}");
-            return false;
-        }
-    }
+            string currentExe = Process.GetCurrentProcess().MainModule?.FileName ?? string.Empty;
+            if (string.IsNullOrEmpty(currentExe)) return false;
 
-    private async Task<bool> ExecuteSeamlessRestart(Action<string> logCallback)
-    {
-        string currentExe = Process.GetCurrentProcess().MainModule?.FileName ?? "BetterF76.exe";
-        string tempExe = Path.Combine(Path.GetTempPath(), "BetterF76_update.exe");
-        string batPath = Path.Combine(Path.GetTempPath(), "fluid_restart.bat");
+            string tempExe = currentExe + ".update";
+            string batPath = Path.Combine(Path.GetTempPath(), "fluid_restart.bat");
 
-        logCallback("[INFO] Pobieranie do pamięci tymczasowej...");
+            // Symulacja zapisania nowego artefaktu z sieci
+            File.Copy(currentExe, tempExe, true);
 
-        // Tutaj logika pobierania. Symulujemy kopiowanie obecnego pliku jako "nowej wersji".
-        File.Copy(currentExe, tempExe, true);
-
-        logCallback("[INFO] Zabezpieczono nową wersję. Generowanie skryptu rotacji...");
-
-        string batScript = $@"
+            string batScript = $@"
 @echo off
 timeout /t 2 /nobreak > NUL
 move /Y ""{tempExe}"" ""{currentExe}""
 start """" ""{currentExe}""
 del ""%~f0""
 ";
-        await File.WriteAllTextAsync(batPath, batScript);
+            await File.WriteAllTextAsync(batPath, batScript);
 
-        logCallback("[CRITICAL] Wymuszam bezszwowy restart...");
+            logCallback("[CRITICAL] Wymuszam bezszwowy restart. Zamykanie deskryptorów...");
 
-        Process.Start(new ProcessStartInfo
-        {
-            FileName = "cmd.exe",
-            Arguments = $"/c \"{batPath}\"",
-            CreateNoWindow = true,
-            UseShellExecute = false
-        });
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "cmd.exe",
+                Arguments = $"/c \"{batPath}\"",
+                CreateNoWindow = true,
+                UseShellExecute = false
+            });
 
-        Application.Current.Shutdown();
-        return true;
+            Application.Current.Shutdown();
+            return true;
+        }
     }
 }

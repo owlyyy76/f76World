@@ -13,10 +13,8 @@ namespace f76World
         {
             base.OnStartup(e);
 
-            // Inicjalizacja Kontenera DI
             _serviceProvider = DependencyInjection.BuildContainer();
 
-            // Uruchomienie Głównego Okna
             var mainWindow = new MainWindow(_serviceProvider);
             mainWindow.Show();
         }
