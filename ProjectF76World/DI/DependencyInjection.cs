@@ -1,39 +1,27 @@
-using F76World.Native.Windows;
 using Microsoft.Extensions.DependencyInjection;
-using ProjectF76World.Core;
-using ProjectF76World.Hardware;
 using ProjectF76World.Hardware.Windows;
-using ProjectF76World.Native.Windows;
+using ProjectF76World.Hardware;
+using ProjectF76World.Core;
+using System;
 
-namespace ProjectF76World.DI;
-
-public static class DependencyInjection
+namespace ProjectF76World.DI
 {
-    public static IServiceProvider BuildContainer()
+    public static class DependencyInjection
     {
-        var services = new ServiceCollection();
-
-        // Rejestracja usług HTTP dla nowego API Gateway f76.world
-        services.AddHttpClient();
-
-        // Rejestracja Fluid Restart Engine
-        services.AddSingleton<FluidRestartEngine>();
-
-        // Rejestracja weryfikatora architektury (Zero-Allocation)
-        services.AddSingleton<SystemArchitectureValidator>();
-
-        // Rejestracja natywnych orkiestratorów dla klienta na Windows
-        if (OperatingSystem.IsWindows())
+        public static IServiceProvider BuildContainer()
         {
-            services.AddSingleton<IGameOrchestrator, WindowsGameOrchestrator>();
-            services.AddSingleton<ITelemetryMonitor, WindowsGpuMonitor>();
-        }
-        else
-        {
-            // Fallback (np. w przypadku mockowania na XeroLinux podczas kompilacji/testów UI)
-            services.AddSingleton<IGameOrchestrator, CrossPlatformGameOrchestrator>();
-        }
+            var services = new ServiceCollection();
 
-        return services.BuildServiceProvider();
+            services.AddHttpClient();
+            services.AddSingleton<FluidRestartEngine>();
+
+            if (OperatingSystem.IsWindows())
+            {
+                services.AddSingleton<IGameOrchestrator, WindowsGameOrchestrator>();
+                services.AddSingleton<IKernelTelemetryMonitor, WindowsGameOrchestrator>();
+            }
+
+            return services.BuildServiceProvider();
+        }
     }
 }

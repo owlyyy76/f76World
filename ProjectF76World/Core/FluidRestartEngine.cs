@@ -5,78 +5,76 @@ using System.Net.Http;
 using System.Threading.Tasks;
 using System.Windows;
 
-namespace ProjectF76World.Core;
-
-public class FluidRestartEngine
+namespace ProjectF76World.Core
 {
-    private const string API_ENDPOINT = "https://api.f76.world/v1/launcher/version";
-    private const string CURRENT_VERSION = "1.0.0";
-    private readonly HttpClient _httpClient;
-
-    public FluidRestartEngine(IHttpClientFactory httpClientFactory)
+    public class FluidRestartEngine
     {
-        _httpClient = httpClientFactory.CreateClient();
-    }
+        private readonly HttpClient _httpClient;
+        private const string ApiUrl = "https://api.f76.world/v1/launcher/version";
 
-    public async Task<bool> CheckAndUpdateAsync(Action<string> logCallback)
-    {
-        try
+        public FluidRestartEngine(IHttpClientFactory httpClientFactory)
         {
-            logCallback("[INFO] Inicjalizacja Fluid Restart Engine. Oczekiwanie na sygnał API...");
+            _httpClient = httpClientFactory.CreateClient();
+        }
 
-            // Symulacja sprawdzenia (w produkcji odpytaj API_ENDPOINT)
-            // var response = await _httpClient.GetStringAsync(API_ENDPOINT);
-            bool hasUpdate = true; // Flaga testowa
-
-            if (hasUpdate)
+        public async Task<(bool UpdateAvailable, string? NewVersion)> CheckForUpdatesAsync(Action<string> logger)
+        {
+            logger("[INFO] Inicjalizacja Fluid Restart Engine. Oczekiwanie na sygnał z API Gateway f76.world...");
+            try
             {
-                logCallback("[WARN] Wykryto nową wersję z API Gateway f76.world. Rozpoczynam pobieranie tła...");
-                return await ExecuteSeamlessRestart(logCallback);
+                // Symulacja ping - docelowo: await _httpClient.GetStringAsync(ApiUrl);
+                await Task.Delay(500);
+                return (true, "1.1.0-resonance"); // Flaga wywołująca proces update'u
             }
-
-            logCallback("[SUCCESS] System jest aktualny.");
-            return false;
+            catch (Exception ex)
+            {
+                logger($"[ERROR] Krytyczny błąd synchronizacji API: {ex.Message}");
+                return (false, null);
+            }
         }
-        catch (Exception ex)
+
+        public async Task<bool> ExecuteSeamlessRestartAsync(Action<string> logger)
         {
-            logCallback($"[ERROR] Błąd synchronizacji API: {ex.Message}");
-            return false;
-        }
-    }
+            try
+            {
+                string currentExe = Process.GetCurrentProcess().MainModule?.FileName ?? string.Empty;
+                if (string.IsNullOrEmpty(currentExe)) return false;
 
-    private async Task<bool> ExecuteSeamlessRestart(Action<string> logCallback)
-    {
-        string currentExe = Process.GetCurrentProcess().MainModule?.FileName ?? "BetterF76.exe";
-        string tempExe = Path.Combine(Path.GetTempPath(), "BetterF76_update.exe");
-        string batPath = Path.Combine(Path.GetTempPath(), "fluid_restart.bat");
+                string tempExe = currentExe + ".update";
+                string batPath = Path.Combine(Path.GetTempPath(), "fluid_restart.bat");
 
-        logCallback("[INFO] Pobieranie do pamięci tymczasowej...");
+                logger("[INFO] Zabezpieczono nową wersję binarnej istoty. Generowanie skryptu rotacji procesów...");
 
-        // Tutaj logika pobierania. Symulujemy kopiowanie obecnego pliku jako "nowej wersji".
-        File.Copy(currentExe, tempExe, true);
+                // Zastąpić docelowo strumieniem pobierania Http
+                File.Copy(currentExe, tempExe, true);
 
-        logCallback("[INFO] Zabezpieczono nową wersję. Generowanie skryptu rotacji...");
-
-        string batScript = $@"
+                string batScript = $@"
 @echo off
 timeout /t 2 /nobreak > NUL
 move /Y ""{tempExe}"" ""{currentExe}""
 start """" ""{currentExe}""
 del ""%~f0""
 ";
-        await File.WriteAllTextAsync(batPath, batScript);
+                await File.WriteAllTextAsync(batPath, batScript);
 
-        logCallback("[CRITICAL] Wymuszam bezszwowy restart...");
+                logger("[CRITICAL] Wymuszam bezszwowy restart infrastruktury...");
 
-        Process.Start(new ProcessStartInfo
-        {
-            FileName = "cmd.exe",
-            Arguments = $"/c \"{batPath}\"",
-            CreateNoWindow = true,
-            UseShellExecute = false
-        });
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "cmd.exe",
+                    Arguments = $"/c \"{batPath}\"",
+                    CreateNoWindow = true,
+                    UseShellExecute = false
+                });
 
-        Application.Current.Shutdown();
-        return true;
+                System.Windows.Application.Current.Shutdown();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                logger($"[ERROR] Fluid Restart Engine napotkał zator pamięci: {ex.Message}");
+                return false;
+            }
+        }
     }
 }
