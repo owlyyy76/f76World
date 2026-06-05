@@ -3,71 +3,148 @@ using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
 using System.Threading.Tasks;
-using System.Windows;
 
-namespace ProjectF76World.Core
+namespace ProjectF76World.Core;
+
+/// <summary>
+/// Silnik odpowiedzialny za asynchroniczną weryfikację i bezstratne wdrażanie aktualizacji
+/// aplikacji w strukturze Single-File Executable poprzez zewnętrzny skrypt powłoki.
+/// </summary>
+public sealed class FluidRestartEngine
 {
-    public class FluidRestartEngine
+    private readonly HttpClient _httpClient;
+    private const string VersionUrl = "https://f76.world/api/launcher/version";
+    private const string DownloadUrl = "https://f76.world/api/launcher/download";
+
+    // Bieżąca wersja zakodowana w kodzie źródłowym klienta
+    public static readonly Version CurrentVersion = new(1, 0, 0);
+
+    public FluidRestartEngine()
     {
-        private readonly HttpClient _httpClient;
-        private const string ApiEndpoint = "https://api.f76.world/v1/launcher/version";
-
-        public FluidRestartEngine(IHttpClientFactory httpClientFactory)
+        _httpClient = new HttpClient
         {
-            _httpClient = httpClientFactory.CreateClient();
-        }
+            Timeout = TimeSpan.FromSeconds(30)
+        };
+        _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("BetterF76-Launcher/1.0");
+    }
 
-        public async Task<bool> CheckAndUpdateAsync(Action<string> logCallback)
+    /// <summary>
+    /// Sprawdza, czy na serwerze f76.world znajduje się nowsza wersja aplikacji.
+    /// </summary>
+    public async Task<bool> CheckForUpdatesAsync()
+    {
+        try
         {
-            logCallback("[INFO] Inicjalizacja Fluid Restart Engine. Pingowanie f76.world...");
-
-            try
+            string versionString = await _httpClient.GetStringAsync(VersionUrl).ConfigureAwait(false);
+            if (Version.TryParse(versionString.Trim(), out Version? remoteVersion))
             {
-                // W produkcji: await _httpClient.GetStringAsync(ApiEndpoint);
-                await Task.Delay(500); // Symulacja opóźnienia sieciowego
-
-                logCallback("[WARN] Zabezpieczono nową sygnaturę binarną. Inicjalizacja rotacji...");
-                return await ExecuteSeamlessRestart(logCallback);
-            }
-            catch (Exception ex)
-            {
-                logCallback($"[ERROR] Błąd synchronizacji API Gateway: {ex.Message}");
-                return false;
+                return remoteVersion > CurrentVersion;
             }
         }
-
-        private async Task<bool> ExecuteSeamlessRestart(Action<string> logCallback)
+        catch (Exception ex)
         {
-            string currentExe = Process.GetCurrentProcess().MainModule?.FileName ?? string.Empty;
-            if (string.IsNullOrEmpty(currentExe)) return false;
+            Debug.WriteLine($"[UpdateEngine] Nie udało się sprawdzić aktualizacji: {ex.Message}");
+        }
+        return false;
+    }
 
-            string tempExe = currentExe + ".update";
-            string batPath = Path.Combine(Path.GetTempPath(), "fluid_restart.bat");
+    /// <summary>
+    /// Pobiera nowy plik wykonywalny i inicjuje procedurę wymiany binarnej w systemie operacyjnym.
+    /// </summary>
+    public async Task<bool> ExecuteUpdateAsync()
+    {
+        try
+        {
+            string currentExePath = Environment.ProcessPath ?? Environment.GetCommandLineArgs()[0];
+            string? currentDirectory = Path.GetDirectoryName(currentExePath);
 
-            // Symulacja zapisania nowego artefaktu z sieci
-            File.Copy(currentExe, tempExe, true);
+            if (string.IsNullOrEmpty(currentDirectory)) return false;
 
-            string batScript = $@"
-@echo off
-timeout /t 2 /nobreak > NUL
-move /Y ""{tempExe}"" ""{currentExe}""
-start """" ""{currentExe}""
-del ""%~f0""
-";
-            await File.WriteAllTextAsync(batPath, batScript);
+            string pendingUpdatePath = Path.Combine(currentDirectory, "BetterF76_Update.tmp");
 
-            logCallback("[CRITICAL] Wymuszam bezszwowy restart. Zamykanie deskryptorów...");
+            // Pobieranie nowego pliku binarnego
+            byte[] fileBytes = await _httpClient.GetByteArrayAsync(DownloadUrl).ConfigureAwait(false);
+            await File.WriteAllBytesAsync(pendingUpdatePath, fileBytes).ConfigureAwait(false);
 
-            Process.Start(new ProcessStartInfo
+            if (OperatingSystem.IsWindows())
             {
-                FileName = "cmd.exe",
-                Arguments = $"/c \"{batPath}\"",
-                CreateNoWindow = true,
-                UseShellExecute = false
-            });
+                ExecuteWindowsUpdater(currentExePath, pendingUpdatePath);
+            }
+            else
+            {
+                ExecuteLinuxUpdater(currentExePath, pendingUpdatePath);
+            }
 
-            Application.Current.Shutdown();
             return true;
         }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[UpdateEngine] Krytyczny błąd podczas aktualizacji: {ex.Message}");
+            return false;
+        }
+    }
+
+    private static void ExecuteWindowsUpdater(string currentExePath, string pendingUpdatePath)
+    {
+        string batchPath = Path.Combine(Path.GetDirectoryName(currentExePath)!, "updater.bat");
+
+        // Tworzenie bezblokadowego skryptu wsadowego CMD, który poczeka na zamknięcie głównego procesu
+        string batchScript = $"""
+        @echo off
+        :retry
+        timeout /t 1 /nobreak > nul
+        move /y "{pendingUpdatePath}" "{currentExePath}" > nul 2>&1
+        if exist "{pendingUpdatePath}" goto retry
+        start "" "{currentExePath}"
+        del "%~f0"
+        """;
+
+        File.WriteAllText(batchPath, batchScript);
+
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = "cmd.exe",
+            Arguments = $"/c \"{batchPath}\"",
+            CreateNoWindow = true,
+            UseShellExecute = false
+        });
+
+        Environment.Exit(0);
+    }
+
+    private static void ExecuteLinuxUpdater(string currentExePath, string pendingUpdatePath)
+    {
+        string scriptPath = Path.Combine(Path.GetDirectoryName(currentExePath)!, "updater.sh");
+
+        // Skrypt bash dla środowiska Linux (np. Proton/Natywne) realizujący atomowe zastąpienie pliku
+        string bashScript = $"""
+        #!/bin/bash
+        sleep 1
+        mv -f "{pendingUpdatePath}" "{currentExePath}"
+        chmod +x "{currentExePath}"
+        "{currentExePath}" &
+        rm -- "$0"
+        """;
+
+        File.WriteAllText(scriptPath, bashScript);
+
+        // Nadanie praw wykonywalności dla skryptu aktualizacyjnego przez bash
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = "chmod",
+            Arguments = $"+x \"{scriptPath}\"",
+            UseShellExecute = false,
+            CreateNoWindow = true
+        })?.WaitForExit();
+
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = "/bin/bash",
+            Arguments = $"\"{scriptPath}\"",
+            UseShellExecute = false,
+            CreateNoWindow = true
+        });
+
+        Environment.Exit(0);
     }
 }
