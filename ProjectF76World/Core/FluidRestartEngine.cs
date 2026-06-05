@@ -9,12 +9,15 @@ namespace ProjectF76World.Core;
 /// <summary>
 /// Silnik odpowiedzialny za asynchroniczną weryfikację i bezstratne wdrażanie aktualizacji
 /// aplikacji w strukturze Single-File Executable poprzez zewnętrzny skrypt powłoki.
+/// Zintegrowany z dedykowaną subdomeną API (api.f76.world).
 /// </summary>
 public sealed class FluidRestartEngine
 {
     private readonly HttpClient _httpClient;
-    private const string VersionUrl = "https://f76.world/api/launcher/version";
-    private const string DownloadUrl = "https://f76.world/api/launcher/download";
+
+    // Zaktualizowane endpointy uderzające w nową subdomenę API
+    private const string VersionUrl = "https://api.f76.world/launcher/version";
+    private const string DownloadUrl = "https://api.f76.world/launcher/download";
 
     // Bieżąca wersja zakodowana w kodzie źródłowym klienta
     public static readonly Version CurrentVersion = new(1, 0, 0);
@@ -62,7 +65,7 @@ public sealed class FluidRestartEngine
 
             string pendingUpdatePath = Path.Combine(currentDirectory, "BetterF76_Update.tmp");
 
-            // Pobieranie nowego pliku binarnego
+            // Pobieranie nowego pliku binarnego z subdomeny API
             byte[] fileBytes = await _httpClient.GetByteArrayAsync(DownloadUrl).ConfigureAwait(false);
             await File.WriteAllBytesAsync(pendingUpdatePath, fileBytes).ConfigureAwait(false);
 

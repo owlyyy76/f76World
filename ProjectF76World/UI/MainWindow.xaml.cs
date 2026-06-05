@@ -1,80 +1,112 @@
 using System;
-using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Input;
-using System.Windows.Media;
 using Microsoft.Extensions.DependencyInjection;
 using ProjectF76World.Core;
 using ProjectF76World.Hardware;
+using ProjectF76World.Native.Windows;
+using ProjectF76World.Native.Windows.Registry;
 
-namespace f76World
+namespace ProjectF76World.UI;
+
+/// <summary>
+/// Główny interfejs sterowania launcherem. Zintegrowany z bezblokadowym silnikiem aktualizacji.
+/// </summary>
+public partial class MainWindow : Window
 {
-    public partial class MainWindow : Window
+    private readonly RegistryRollbackManager _rollbackManager;
+    private readonly IGameOrchestrator _gameOrchestrator;
+    private readonly FluidRestartEngine _updateEngine;
+
+    public MainWindow()
     {
-        private readonly IGameOrchestrator _orchestrator;
-        private readonly FluidRestartEngine _updater;
+        InitializeComponent();
 
-        public MainWindow(IServiceProvider serviceProvider)
+        // Pobieranie bezpiecznych, zindeksowanych usług z kontenera DI
+        var services = ProjectF76World.DI.DependencyInjection.ServiceProvider;
+        _gameOrchestrator = services.GetRequiredService<IGameOrchestrator>();
+        _updateEngine = services.GetRequiredService<FluidRestartEngine>();
+
+        _rollbackManager = new RegistryRollbackManager();
+
+        Loaded += MainWindow_Loaded;
+    }
+
+    private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
+    {
+        // Sprawdzenie integralności architektury (Tylko dla środowiska Windows)
+        if (OperatingSystem.IsWindows())
         {
-            InitializeComponent();
-
-            _orchestrator = serviceProvider.GetRequiredService<IGameOrchestrator>();
-            _updater = serviceProvider.GetRequiredService<FluidRestartEngine>();
-
-            _orchestrator.Initialize();
-            AppendLog("[SYSTEM] Architektura Windows 11 Native zablokowana. Silnik gotowy.");
-        }
-
-        private void AppendLog(string message)
-        {
-            Application.Current.Dispatcher.InvokeAsync(() =>
-            {
-                LogConsole.AppendText($"[{DateTime.Now:HH:mm:ss}] {message}\n");
-                LogConsole.ScrollToEnd();
-            });
-        }
-
-        private async void BtnLaunchGame_Click(object sender, RoutedEventArgs e)
-        {
-            BtnLaunchGame.IsEnabled = false;
-            AppendLog("[WSTRZYKNIĘCIE] Rozpoczynam procedurę Purge VRAM poprzez DXGI Shim...");
-
-            LblEngineStatus.Text = "PURGING VRAM...";
-            LblEngineStatus.Foreground = new SolidColorBrush(Color.FromRgb(231, 76, 60));
-
             try
             {
-                await Task.Run(() => _orchestrator.DumpVRAM());
-                AppendLog("[SUCCESS] Bufory wyczyszczone. Gra uruchomiona w czystym środowisku.");
-
-                LblEngineStatus.Text = "ACTIVE";
-                LblEngineStatus.Foreground = new SolidColorBrush(Color.FromRgb(0, 230, 118));
+                SystemArchitectureValidator.EnsureSystemReadiness();
             }
             catch (Exception ex)
             {
-                AppendLog($"[ERROR] Błąd Orkiestratora Jądra: {ex.Message}");
+                MessageBox.Show(ex.Message, "Krytyczny błąd systemu", MessageBoxButton.OK, MessageBoxImage.Error);
             }
-            finally
+        }
+
+        // Automatyczne i ciche sprawdzenie dostępności aktualizacji przy starcie
+        await CheckForUpdatesSilentlyAsync();
+    }
+
+    /// <summary>
+    /// Metoda asynchroniczna sprawdzająca stan binarnego repozytorium f76.world.
+    /// </summary>
+    private async Task CheckForUpdatesSilentlyAsync()
+    {
+        bool updateAvailable = await _updateEngine.CheckForUpdatesAsync();
+        if (updateAvailable)
+        {
+            var result = MessageBox.Show(
+                "Wykryto nową, stabilną wersję launchera BetterF76. Czy chcesz zaktualizować aplikację automatycznie?",
+                "Dostępna Aktualizacja",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (result == MessageBoxResult.Yes)
             {
-                BtnLaunchGame.IsEnabled = true;
+                // Uruchomienie procedury bezblokadowego nadpisywania binarnego
+                bool success = await _updateEngine.ExecuteUpdateAsync();
+                if (!success)
+                {
+                    MessageBox.Show("Wystąpił błąd podczas pobierania paczki aktualizacyjnej.", "Błąd Aktualizacji", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
             }
         }
+    }
 
-        private async void BtnUpdate_Click(object sender, RoutedEventArgs e)
+    private void OnDisableMpoClick(object sender, RoutedEventArgs e)
+    {
+        if (!OperatingSystem.IsWindows()) return;
+
+        Dispatcher.Invoke(() =>
         {
-            BtnUpdate.IsEnabled = false;
-            await _updater.CheckAndUpdateAsync(AppendLog);
-            BtnUpdate.IsEnabled = true;
-        }
+            bool success = _rollbackManager.ApplyOptimization(NativeRegistry.HKEY_LOCAL_MACHINE, @"SOFTWARE\Microsoft\Windows\Dwm", "OverlayTestMode", 5u);
+            if (success) MessageBox.Show("MPO zostało pomyślnie wyłączone.", "Optymalizacja", MessageBoxButton.OK, MessageBoxImage.Information);
+        });
+    }
 
-        // --- Kontrolki paska tytułowego ---
-        private void TitleBar_MouseDown(object sender, MouseButtonEventArgs e)
+    private void OnClearMemoryClick(object sender, RoutedEventArgs e)
+    {
+        Dispatcher.Invoke(() =>
         {
-            if (e.ChangedButton == MouseButton.Left)
-                DragMove();
-        }
+            bool optimized = _gameOrchestrator.OptimizeHardwareResources();
+            if (optimized)
+            {
+                MessageBox.Show("Pamięć podręczna aplikacji w tle została pomyślnie zrzucona.", "Optymalizacja VRAM/RAM", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        });
+    }
 
-        private void BtnMinimize_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
-        private void BtnClose_Click(object sender, RoutedEventArgs e) => Close();
+    private void OnRollbackClick(object sender, RoutedEventArgs e)
+    {
+        if (!OperatingSystem.IsWindows()) return;
+
+        Dispatcher.Invoke(() =>
+        {
+            _rollbackManager.RollbackAll();
+            MessageBox.Show("Przywrócono domyślne ustawienia rejestru systemowego.", "Rollback", MessageBoxButton.OK, MessageBoxImage.Information);
+        });
     }
 }
