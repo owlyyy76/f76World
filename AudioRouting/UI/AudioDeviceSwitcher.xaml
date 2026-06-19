@@ -1,9 +1,9 @@
-﻿ using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using f76World.AudioRouting;
 
-namespace f76World.UI
+namespace f76World.AudioRouting.UI
 {
     public partial class AudioDeviceSwitcher : UserControl
     {
