@@ -6,13 +6,37 @@
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<UseWPF>true</UseWPF>
-		<ApplicationIcon>icon.ico</ApplicationIcon>
+
+		<!-- Optymalizacje Monolitu (Single-File) -->
+		<PublishSingleFile>true</PublishSingleFile>
+		<SelfContained>true</SelfContained>
+		<RuntimeIdentifier>win-x64</RuntimeIdentifier>
+		<PublishReadyToRun>true</PublishReadyToRun>
+		<PublishTrimmed>false</PublishTrimmed>
+		<!-- WPF źle znosi trimming bez dogłębnej konfiguracji -->
+
+		<!-- Uprawnienia UAC z manifestu -->
 		<ApplicationManifest>app.manifest</ApplicationManifest>
-		<UseWindowsForms>true</UseWindowsForms>
+		<ApplicationIcon>icon.ico</ApplicationIcon>
+
+		<!-- Eliminacja bloatu -->
+		<GenerateAssemblyInfo>false</GenerateAssemblyInfo>
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="System.ServiceProcess.ServiceController" Version="10.0.5" />
+	  <Compile Include="ProjectF76World\UI\AudioDeviceSwitcher.xaml">
+	    <Generator>MSBuild:Compile</Generator>
+	  </Compile>
 	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
+		<PackageReference Include="NAudio" Version="2.3.0" />
+	</ItemGroup>
+
+	<!-- Wymuszenie kompilacji P/Invoke Source Generators -->
+	<PropertyGroup>
+		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+	</PropertyGroup>
 
 </Project>
