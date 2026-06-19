@@ -1,4 +1,5 @@
 <Window x:Class="f76World.MainWindow"
+        xmlns:ui="clr-namespace:F76World.Launcher.UI"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Universal Windows Optimizer (PRO)" Height="820" Width="950"
@@ -115,7 +116,7 @@
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
-
+                <ui:AudioDeviceSwitcher />
                 <!-- MESSAGE OF THE DAY PANEL -->
                 <Border Grid.Row="0" Margin="0,0,0,10">
                     <Grid>
