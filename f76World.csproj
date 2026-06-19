@@ -28,7 +28,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <Compile Include="AudioRouting\UI\AudioDeviceSwitcher.xaml">
+	  <Compile Include="UI\AudioDeviceSwitcher.xaml">
 	    <Generator>MSBuild:Compile</Generator>
 	  </Compile>
 	</ItemGroup>
