@@ -3,10 +3,9 @@ using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
 using ProjectF76World.Core;
 using ProjectF76World.Hardware;
-using ProjectF76World.Native.Windows;
-using ProjectF76World.Native.Windows.Registry;
+using ProjectF76World.Hardware.Windows;
 
-namespace ProjectF76World.UI;
+namespace f76World.ProjectF76World.UI;
 
 /// <summary>
 /// Główny interfejs sterowania launcherem. Zintegrowany z bezblokadowym silnikiem aktualizacji.
