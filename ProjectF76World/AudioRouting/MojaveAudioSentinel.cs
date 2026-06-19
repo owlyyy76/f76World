@@ -11,7 +11,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Linq;
 
-namespace f76World.AudioRouting
+namespace ProjectF76World.AudioRouting
 {
     /// <summary>
     /// Represents an available physical audio endpoint in the system.
