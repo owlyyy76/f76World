@@ -1,5 +1,5 @@
 <Window x:Class="f76World.MainWindow"
-        xmlns:ui="clr-namespace:F76World.Launcher.UI"
+        xmlns:ui="clr-namespace:f76World.UI"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Universal Windows Optimizer (PRO)" Height="820" Width="950"
@@ -116,7 +116,6 @@
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
-                <ui:AudioDeviceSwitcher />
                 <!-- MESSAGE OF THE DAY PANEL -->
                 <Border Grid.Row="0" Margin="0,0,0,10">
                     <Grid>
@@ -152,6 +151,7 @@
 
                         <!-- EXECUTION BUTTONS -->
                         <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                            <ui:AudioDeviceSwitcher />
                             <Button x:Name="BtnOptimizeIni" Click="BtnOptimizeIni_Click" Content="📊 Optimize INI Matrices" Style="{StaticResource NeonButton}" Background="#3498DB" Padding="25,15" Margin="0,0,0,15"/>
                             <Button x:Name="BtnLaunchGame" Click="BtnLaunchGame_Click" Content="🚀 Execute VRAM Purge &amp; Launch FO76" Style="{StaticResource NeonButton}" Background="#E74C3C" Padding="25,15"/>
                         </StackPanel>
